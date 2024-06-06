@@ -11,6 +11,8 @@ import (
 )
 
 type DB struct {
+	debug bool
+
 	mux  *sync.RWMutex
 	path string
 
@@ -28,8 +30,9 @@ type DBStructure struct {
 
 // NewDB creates a new database connection
 // and creates the database file if it doesn't exist
-func NewDB(path string) (*DB, error) {
+func NewDB(path string, debug bool) (*DB, error) {
 	db := &DB{
+		debug:       debug,
 		mux:         &sync.RWMutex{},
 		path:        path,
 		chirpIdMux:  &sync.RWMutex{},
@@ -37,9 +40,32 @@ func NewDB(path string) (*DB, error) {
 		userIdMux:   &sync.RWMutex{},
 		userLastId:  0,
 	}
+	if db.debug {
+		if err := os.Remove(db.path); err != nil {
+			return nil, err
+		}
+	}
 	if err := db.ensureDB(); err != nil {
 		return nil, err
 	}
+
+	dbObj, err := db.loadDB()
+	if err != nil {
+		return nil, err
+	}
+
+	maxChirpId := 0
+	for cid := range dbObj.Chirps {
+		maxChirpId = max(maxChirpId, cid)
+	}
+	db.chirpLastId = maxChirpId
+
+	maxUserId := 0
+	for uid := range dbObj.Users {
+		maxUserId = max(maxUserId, uid)
+	}
+	db.userLastId = maxUserId
+
 	return db, nil
 }
 

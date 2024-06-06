@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -136,7 +137,10 @@ func handlerHealth(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	db, err := database.NewDB("database.json")
+	isDebug := flag.Bool("debug", false, "Enable debug mode")
+	flag.Parse()
+
+	db, err := database.NewDB("database.json", *isDebug)
 	if err != nil {
 		log.Fatalf("error with database initialization: %s", err)
 	}
