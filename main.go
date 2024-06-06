@@ -6,7 +6,9 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
 	"sort"
+	"strconv"
 
 	"github.com/sp3dr4/chirpy/internal/database"
 	"github.com/sp3dr4/chirpy/internal/entities"
@@ -67,6 +69,27 @@ func (cfg *apiConfig) handlerListChirps(w http.ResponseWriter, req *http.Request
 	respondWithJSON(w, 200, chirps)
 }
 
+func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, req *http.Request) {
+	chirpId, err := strconv.Atoi(req.PathValue("chirpId"))
+	if err != nil {
+		respondWithError(w, 400, "invalid integer for chirp id")
+		return
+	}
+	chirps, err := cfg.db.GetChirps()
+	if err != nil {
+		respondWithError(w, 500, err.Error())
+		return
+	}
+	i := slices.IndexFunc(chirps, func(c entities.Chirp) bool {
+		return c.Id == chirpId
+	})
+	if i == -1 {
+		respondWithError(w, 404, "chirp not found")
+		return
+	}
+	respondWithJSON(w, 200, chirps[i])
+}
+
 func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Request) {
 	type chirpRequest struct {
 		Body string `json:"body"`
@@ -109,6 +132,7 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", handlerHealth)
 	mux.HandleFunc("POST /api/chirps", cfg.handlerCreateChirp)
 	mux.HandleFunc("GET /api/chirps", cfg.handlerListChirps)
+	mux.HandleFunc("GET /api/chirps/{chirpId}", cfg.handlerGetChirp)
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: mux,
