@@ -14,22 +14,28 @@ type DB struct {
 	mux  *sync.RWMutex
 	path string
 
-	idMux  *sync.RWMutex
-	lastId int
+	chirpIdMux  *sync.RWMutex
+	chirpLastId int
+
+	userIdMux  *sync.RWMutex
+	userLastId int
 }
 
 type DBStructure struct {
 	Chirps map[int]entities.Chirp `json:"chirps"`
+	Users  map[int]entities.User  `json:"users"`
 }
 
 // NewDB creates a new database connection
 // and creates the database file if it doesn't exist
 func NewDB(path string) (*DB, error) {
 	db := &DB{
-		mux:    &sync.RWMutex{},
-		path:   path,
-		idMux:  &sync.RWMutex{},
-		lastId: 0,
+		mux:         &sync.RWMutex{},
+		path:        path,
+		chirpIdMux:  &sync.RWMutex{},
+		chirpLastId: 0,
+		userIdMux:   &sync.RWMutex{},
+		userLastId:  0,
 	}
 	if err := db.ensureDB(); err != nil {
 		return nil, err
@@ -39,10 +45,10 @@ func NewDB(path string) (*DB, error) {
 
 // CreateChirp creates a new chirp and saves it to disk
 func (db *DB) CreateChirp(body string) (*entities.Chirp, error) {
-	db.idMux.Lock()
-	db.lastId += 1
-	db.idMux.Unlock()
-	chirp := entities.Chirp{Id: db.lastId, Body: body}
+	db.chirpIdMux.Lock()
+	db.chirpLastId += 1
+	db.chirpIdMux.Unlock()
+	chirp := entities.Chirp{Id: db.chirpLastId, Body: body}
 	dbObj, err := db.loadDB()
 	if err != nil {
 		return nil, err
@@ -60,11 +66,41 @@ func (db *DB) GetChirps() ([]entities.Chirp, error) {
 	if err != nil {
 		return nil, err
 	}
-	chirps := []entities.Chirp{}
-	for _, c := range dbObj.Chirps {
-		chirps = append(chirps, c)
+	chirps := make([]entities.Chirp, 0, len(dbObj.Chirps))
+	for _, value := range dbObj.Chirps {
+		chirps = append(chirps, value)
 	}
 	return chirps, nil
+}
+
+// CreateUser creates a new user and saves it to disk
+func (db *DB) CreateUser(email string) (*entities.User, error) {
+	db.userIdMux.Lock()
+	db.userLastId += 1
+	db.userIdMux.Unlock()
+	user := entities.User{Id: db.userLastId, Email: email}
+	dbObj, err := db.loadDB()
+	if err != nil {
+		return nil, err
+	}
+	dbObj.Users[user.Id] = user
+	if err = db.writeDB(*dbObj); err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+// GetUsers returns all users in the database
+func (db *DB) GetUsers() ([]entities.User, error) {
+	dbObj, err := db.loadDB()
+	if err != nil {
+		return nil, err
+	}
+	users := make([]entities.User, 0, len(dbObj.Users))
+	for _, value := range dbObj.Users {
+		users = append(users, value)
+	}
+	return users, nil
 }
 
 // ensureDB creates a new database file if it doesn't exist
@@ -76,7 +112,11 @@ func (db *DB) ensureDB() error {
 	if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	if err = db.writeDB(DBStructure{Chirps: map[int]entities.Chirp{}}); err != nil {
+	dbObj := DBStructure{
+		Chirps: map[int]entities.Chirp{},
+		Users:  map[int]entities.User{},
+	}
+	if err = db.writeDB(dbObj); err != nil {
 		return err
 	}
 	return nil

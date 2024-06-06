@@ -112,6 +112,23 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Reques
 	respondWithJSON(w, 201, chirp)
 }
 
+func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request) {
+	type userRequest struct {
+		Email string `json:"email"`
+	}
+	userReq := userRequest{}
+	if err := json.NewDecoder(req.Body).Decode(&userReq); err != nil {
+		respondWithError(w, 400, "error decoding request body")
+		return
+	}
+	user, err := cfg.db.CreateUser(userReq.Email)
+	if err != nil {
+		respondWithError(w, 500, err.Error())
+		return
+	}
+	respondWithJSON(w, 201, user)
+}
+
 func handlerHealth(w http.ResponseWriter, req *http.Request) {
 	w.Header().Add("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(200)
@@ -133,6 +150,7 @@ func main() {
 	mux.HandleFunc("POST /api/chirps", cfg.handlerCreateChirp)
 	mux.HandleFunc("GET /api/chirps", cfg.handlerListChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpId}", cfg.handlerGetChirp)
+	mux.HandleFunc("POST /api/users", cfg.handlerCreateUser)
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: mux,
