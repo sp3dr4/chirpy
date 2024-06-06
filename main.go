@@ -2,15 +2,15 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
-	"slices"
-	"strings"
-)
+	"sort"
 
-var profanities []string = []string{"kerfuffle", "sharbert", "fornax"}
+	"github.com/sp3dr4/chirpy/internal/database"
+	"github.com/sp3dr4/chirpy/internal/entities"
+)
 
 func respondWithError(w http.ResponseWriter, code int, msg string) {
 	type respErr struct {
@@ -35,6 +35,7 @@ func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
 
 type apiConfig struct {
 	fileserverHits int
+	db             *database.DB
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -56,38 +57,36 @@ func (cfg *apiConfig) handlerResetMetrics(w http.ResponseWriter, req *http.Reque
 	w.WriteHeader(200)
 }
 
-func validateChirp(text string) (string, error) {
-	if len(text) > 140 {
-		return "", errors.New("chirp is too long")
+func (cfg *apiConfig) handlerListChirps(w http.ResponseWriter, req *http.Request) {
+	chirps, err := cfg.db.GetChirps()
+	if err != nil {
+		respondWithError(w, 500, err.Error())
+		return
 	}
-	words := strings.Split(text, " ")
-	for i, word := range words {
-		if slices.Contains(profanities, strings.ToLower(word)) {
-			words[i] = "****"
-		}
-	}
-	return strings.Join(words, " "), nil
+	sort.Slice(chirps, func(i, j int) bool { return chirps[i].Id < chirps[j].Id })
+	respondWithJSON(w, 200, chirps)
 }
 
-func handlerChirpValidation(w http.ResponseWriter, req *http.Request) {
-	type chirpReq struct {
+func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Request) {
+	type chirpRequest struct {
 		Body string `json:"body"`
 	}
-	type respOk struct {
-		Cleaned string `json:"cleaned_body"`
-	}
-
-	chirp := chirpReq{}
-	if err := json.NewDecoder(req.Body).Decode(&chirp); err != nil {
+	chirpReq := chirpRequest{}
+	if err := json.NewDecoder(req.Body).Decode(&chirpReq); err != nil {
 		respondWithError(w, 400, "error decoding request body")
 		return
 	}
-	cleaned, err := validateChirp(chirp.Body)
+	cleaned, err := entities.ValidateChirp(chirpReq.Body)
 	if err != nil {
 		respondWithError(w, 400, err.Error())
 		return
 	}
-	respondWithJSON(w, 200, respOk{Cleaned: cleaned})
+	chirp, err := cfg.db.CreateChirp(cleaned)
+	if err != nil {
+		respondWithError(w, 500, err.Error())
+		return
+	}
+	respondWithJSON(w, 201, chirp)
 }
 
 func handlerHealth(w http.ResponseWriter, req *http.Request) {
@@ -97,14 +96,19 @@ func handlerHealth(w http.ResponseWriter, req *http.Request) {
 }
 
 func main() {
-	cfg := apiConfig{}
+	db, err := database.NewDB("database.json")
+	if err != nil {
+		log.Fatalf("error with database initialization: %s", err)
+	}
+	cfg := apiConfig{fileserverHits: 0, db: db}
 	mux := http.NewServeMux()
 	fileSv := http.FileServer(http.Dir("."))
 	mux.Handle("/app/*", http.StripPrefix("/app", cfg.middlewareMetricsInc(fileSv)))
-	mux.HandleFunc("GET /api/healthz", handlerHealth)
-	mux.HandleFunc("GET /admin/metrics", cfg.handlerGetMetrics)
 	mux.HandleFunc("/api/reset", cfg.handlerResetMetrics)
-	mux.HandleFunc("POST /api/validate_chirp", handlerChirpValidation)
+	mux.HandleFunc("GET /admin/metrics", cfg.handlerGetMetrics)
+	mux.HandleFunc("GET /api/healthz", handlerHealth)
+	mux.HandleFunc("POST /api/chirps", cfg.handlerCreateChirp)
+	mux.HandleFunc("GET /api/chirps", cfg.handlerListChirps)
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: mux,
