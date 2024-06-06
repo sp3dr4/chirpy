@@ -2,10 +2,36 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
+	"strings"
 )
+
+var profanities []string = []string{"kerfuffle", "sharbert", "fornax"}
+
+func respondWithError(w http.ResponseWriter, code int, msg string) {
+	type respErr struct {
+		Error string `json:"error"`
+	}
+	dat, _ := json.Marshal(respErr{Error: msg})
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(dat)
+}
+
+func respondWithJSON(w http.ResponseWriter, code int, payload interface{}) {
+	dat, err := json.Marshal(payload)
+	if err != nil {
+		respondWithError(w, 500, "error encoding response")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	w.Write(dat)
+}
 
 type apiConfig struct {
 	fileserverHits int
@@ -30,36 +56,38 @@ func (cfg *apiConfig) handlerResetMetrics(w http.ResponseWriter, req *http.Reque
 	w.WriteHeader(200)
 }
 
-func handlerChirpValidation(w http.ResponseWriter, req *http.Request) {
-	status := 200
+func validateChirp(text string) (string, error) {
+	if len(text) > 140 {
+		return "", errors.New("chirp is too long")
+	}
+	words := strings.Split(text, " ")
+	for i, word := range words {
+		if slices.Contains(profanities, strings.ToLower(word)) {
+			words[i] = "****"
+		}
+	}
+	return strings.Join(words, " "), nil
+}
 
+func handlerChirpValidation(w http.ResponseWriter, req *http.Request) {
 	type chirpReq struct {
 		Body string `json:"body"`
 	}
-	type respErr struct {
-		Error string `json:"error"`
-	}
 	type respOk struct {
-		Valid bool `json:"valid"`
+		Cleaned string `json:"cleaned_body"`
 	}
 
-	var dat []byte
 	chirp := chirpReq{}
 	if err := json.NewDecoder(req.Body).Decode(&chirp); err != nil {
-		status = 400
-		dat, _ = json.Marshal(respErr{Error: "Something went wrong"})
-	} else {
-		if len(chirp.Body) > 140 {
-			status = 400
-			dat, _ = json.Marshal(respErr{Error: "Chirp is too long"})
-		} else {
-			dat, _ = json.Marshal(respOk{Valid: true})
-		}
+		respondWithError(w, 400, "error decoding request body")
+		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	w.Write(dat)
+	cleaned, err := validateChirp(chirp.Body)
+	if err != nil {
+		respondWithError(w, 400, err.Error())
+		return
+	}
+	respondWithJSON(w, 200, respOk{Cleaned: cleaned})
 }
 
 func handlerHealth(w http.ResponseWriter, req *http.Request) {
