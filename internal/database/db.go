@@ -146,6 +146,23 @@ func (db *DB) GetUsers() ([]entities.User, error) {
 	return users, nil
 }
 
+// UpdateUser updates a user attributes and returns it
+func (db *DB) UpdateUser(user *entities.User) (*entities.User, error) {
+	dbObj, err := db.loadDB()
+	if err != nil {
+		return nil, err
+	}
+	for i, u := range dbObj.Users {
+		if u.Id == user.Id {
+			dbObj.Users[i] = *user
+		}
+	}
+	if err = db.writeDB(*dbObj); err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
 // ensureDB creates a new database file if it doesn't exist
 func (db *DB) ensureDB() error {
 	_, err := os.ReadFile(db.path)
