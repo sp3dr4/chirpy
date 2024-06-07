@@ -10,6 +10,8 @@ import (
 	"github.com/sp3dr4/chirpy/internal/entities"
 )
 
+var ErrDuplicateUser = fmt.Errorf("user with email already exists")
+
 type DB struct {
 	debug bool
 
@@ -54,17 +56,13 @@ func NewDB(path string, debug bool) (*DB, error) {
 		return nil, err
 	}
 
-	maxChirpId := 0
 	for cid := range dbObj.Chirps {
-		maxChirpId = max(maxChirpId, cid)
+		db.chirpLastId = max(db.chirpLastId, cid)
 	}
-	db.chirpLastId = maxChirpId
 
-	maxUserId := 0
 	for uid := range dbObj.Users {
-		maxUserId = max(maxUserId, uid)
+		db.userLastId = max(db.userLastId, uid)
 	}
-	db.userLastId = maxUserId
 
 	return db, nil
 }
@@ -99,16 +97,35 @@ func (db *DB) GetChirps() ([]entities.Chirp, error) {
 	return chirps, nil
 }
 
+func findUserByEmail(users map[int]entities.User, email string) (*entities.User, bool) {
+	for _, u := range users {
+		if u.Email == email {
+			return &u, true
+		}
+	}
+	return nil, false
+}
+
 // CreateUser creates a new user and saves it to disk
-func (db *DB) CreateUser(email string) (*entities.User, error) {
-	db.userIdMux.Lock()
-	db.userLastId += 1
-	db.userIdMux.Unlock()
-	user := entities.User{Id: db.userLastId, Email: email}
+func (db *DB) CreateUser(email, password string) (*entities.User, error) {
 	dbObj, err := db.loadDB()
 	if err != nil {
 		return nil, err
 	}
+
+	if _, exists := findUserByEmail(dbObj.Users, email); exists {
+		return nil, ErrDuplicateUser
+	}
+
+	db.userIdMux.Lock()
+	db.userLastId += 1
+	db.userIdMux.Unlock()
+	user := entities.User{
+		Id:       db.userLastId,
+		Email:    email,
+		Password: password,
+	}
+
 	dbObj.Users[user.Id] = user
 	if err = db.writeDB(*dbObj); err != nil {
 		return nil, err

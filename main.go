@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -10,9 +11,11 @@ import (
 	"slices"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/sp3dr4/chirpy/internal/database"
 	"github.com/sp3dr4/chirpy/internal/entities"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func respondWithError(w http.ResponseWriter, code int, msg string) {
@@ -115,6 +118,11 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Reques
 
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request) {
 	type userRequest struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	type userResponse struct {
+		Id    int    `json:"id"`
 		Email string `json:"email"`
 	}
 	userReq := userRequest{}
@@ -122,12 +130,56 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 		respondWithError(w, 400, "error decoding request body")
 		return
 	}
-	user, err := cfg.db.CreateUser(userReq.Email)
+	paswHash, err := bcrypt.GenerateFromPassword([]byte(userReq.Password), bcrypt.DefaultCost)
+	if err != nil {
+		respondWithError(w, 500, "something went wrong")
+		return
+	}
+	user, err := cfg.db.CreateUser(strings.ToLower(userReq.Email), string(paswHash))
+	if err != nil {
+		code := 500
+		if errors.Is(err, database.ErrDuplicateUser) {
+			code = 400
+		}
+		respondWithError(w, code, err.Error())
+		return
+	}
+	respondWithJSON(w, 201, userResponse{Id: user.Id, Email: user.Email})
+}
+
+func (cfg *apiConfig) handlerLoginUser(w http.ResponseWriter, req *http.Request) {
+	type userRequest struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	type userResponse struct {
+		Id    int    `json:"id"`
+		Email string `json:"email"`
+	}
+	userReq := userRequest{}
+	if err := json.NewDecoder(req.Body).Decode(&userReq); err != nil {
+		respondWithError(w, 400, "error decoding request body")
+		return
+	}
+
+	users, err := cfg.db.GetUsers()
 	if err != nil {
 		respondWithError(w, 500, err.Error())
 		return
 	}
-	respondWithJSON(w, 201, user)
+	i := slices.IndexFunc(users, func(c entities.User) bool {
+		return c.Email == strings.ToLower(userReq.Email)
+	})
+	if i == -1 {
+		respondWithError(w, 404, "user not found")
+		return
+	}
+	user := users[i]
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(userReq.Password)); err != nil {
+		respondWithError(w, 401, "unauthorized")
+		return
+	}
+	respondWithJSON(w, 200, userResponse{Id: user.Id, Email: user.Email})
 }
 
 func handlerHealth(w http.ResponseWriter, req *http.Request) {
@@ -155,6 +207,7 @@ func main() {
 	mux.HandleFunc("GET /api/chirps", cfg.handlerListChirps)
 	mux.HandleFunc("GET /api/chirps/{chirpId}", cfg.handlerGetChirp)
 	mux.HandleFunc("POST /api/users", cfg.handlerCreateUser)
+	mux.HandleFunc("POST /api/login", cfg.handlerLoginUser)
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: mux,
