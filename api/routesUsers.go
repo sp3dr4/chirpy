@@ -47,14 +47,9 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 }
 
 func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, req *http.Request) {
-	tokenStr, found := strings.CutPrefix(req.Header.Get("Authorization"), "Bearer ")
-	if !found {
-		respondWithError(w, 401, "no authorization header")
-	}
-
-	userId, err := getUserIdFromJwt(tokenStr, cfg.jwtSecret)
+	userId, err := cfg.isAuthenticated(req)
 	if err != nil {
-		respondWithError(w, 401, "unauthorized")
+		respondWithError(w, 401, err.Error())
 		return
 	}
 

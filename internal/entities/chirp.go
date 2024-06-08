@@ -9,8 +9,9 @@ import (
 var profanities []string = []string{"kerfuffle", "sharbert", "fornax"}
 
 type Chirp struct {
-	Id   int    `json:"id"`
-	Body string `json:"body"`
+	Id     int    `json:"id"`
+	Body   string `json:"body"`
+	UserId int    `json:"author_id"`
 }
 
 func ValidateChirp(text string) (string, error) {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -10,6 +11,19 @@ import (
 	"github.com/sp3dr4/chirpy/internal/entities"
 	"golang.org/x/crypto/bcrypt"
 )
+
+func (cfg *apiConfig) isAuthenticated(r *http.Request) (int, error) {
+	tokenStr, found := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !found {
+		return 0, errors.New("no authorization header")
+	}
+
+	userId, err := getUserIdFromJwt(tokenStr, cfg.jwtSecret)
+	if err != nil {
+		return 0, errors.New("unauthorized")
+	}
+	return userId, nil
+}
 
 func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, req *http.Request) {
 	type loginResponse struct {

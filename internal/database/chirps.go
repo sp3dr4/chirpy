@@ -3,11 +3,11 @@ package database
 import "github.com/sp3dr4/chirpy/internal/entities"
 
 // CreateChirp creates a new chirp and saves it to disk
-func (db *DB) CreateChirp(body string) (*entities.Chirp, error) {
+func (db *DB) CreateChirp(userId int, body string) (*entities.Chirp, error) {
 	db.chirpIdMux.Lock()
 	db.chirpLastId += 1
 	db.chirpIdMux.Unlock()
-	chirp := entities.Chirp{Id: db.chirpLastId, Body: body}
+	chirp := entities.Chirp{Id: db.chirpLastId, Body: body, UserId: userId}
 	dbObj, err := db.loadDB()
 	if err != nil {
 		return nil, err

@@ -42,10 +42,16 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, req *http.Request) 
 }
 
 func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Request) {
-	type chirpRequest struct {
+	userId, err := cfg.isAuthenticated(req)
+	if err != nil {
+		respondWithError(w, 401, err.Error())
+		return
+	}
+
+	type request struct {
 		Body string `json:"body"`
 	}
-	chirpReq := chirpRequest{}
+	chirpReq := request{}
 	if err := json.NewDecoder(req.Body).Decode(&chirpReq); err != nil {
 		respondWithError(w, 400, "error decoding request body")
 		return
@@ -55,7 +61,7 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Reques
 		respondWithError(w, 400, err.Error())
 		return
 	}
-	chirp, err := cfg.db.CreateChirp(cleaned)
+	chirp, err := cfg.db.CreateChirp(userId, cleaned)
 	if err != nil {
 		respondWithError(w, 500, err.Error())
 		return
