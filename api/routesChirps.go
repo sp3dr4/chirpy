@@ -15,7 +15,7 @@ import (
 var errNotFound = fmt.Errorf("chirp not found")
 
 func (cfg *apiConfig) findChirpById(id int) (*entities.Chirp, error) {
-	chirps, err := cfg.db.GetChirps()
+	chirps, err := cfg.db.GetChirps(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +29,17 @@ func (cfg *apiConfig) findChirpById(id int) (*entities.Chirp, error) {
 }
 
 func (cfg *apiConfig) handlerListChirps(w http.ResponseWriter, req *http.Request) {
-	chirps, err := cfg.db.GetChirps()
+	s := req.URL.Query().Get("author_id")
+	var byUserId *int
+	if s != "" {
+		v, err := strconv.Atoi(s)
+		if err != nil {
+			respondWithError(w, 400, err.Error())
+			return
+		}
+		byUserId = &v
+	}
+	chirps, err := cfg.db.GetChirps(byUserId)
 	if err != nil {
 		respondWithError(w, 500, err.Error())
 		return
