@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"slices"
 	"sort"
@@ -9,6 +11,22 @@ import (
 
 	"github.com/sp3dr4/chirpy/internal/entities"
 )
+
+var errNotFound = fmt.Errorf("chirp not found")
+
+func (cfg *apiConfig) findChirpById(id int) (*entities.Chirp, error) {
+	chirps, err := cfg.db.GetChirps()
+	if err != nil {
+		return nil, err
+	}
+	i := slices.IndexFunc(chirps, func(c entities.Chirp) bool {
+		return c.Id == id
+	})
+	if i == -1 {
+		return nil, errNotFound
+	}
+	return &chirps[i], nil
+}
 
 func (cfg *apiConfig) handlerListChirps(w http.ResponseWriter, req *http.Request) {
 	chirps, err := cfg.db.GetChirps()
@@ -26,19 +44,16 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, req *http.Request) 
 		respondWithError(w, 400, "invalid integer for chirp id")
 		return
 	}
-	chirps, err := cfg.db.GetChirps()
+	chirp, err := cfg.findChirpById(chirpId)
 	if err != nil {
-		respondWithError(w, 500, err.Error())
+		if errors.Is(err, errNotFound) {
+			respondWithError(w, 404, "chirp not found")
+		} else {
+			respondWithError(w, 500, err.Error())
+		}
 		return
 	}
-	i := slices.IndexFunc(chirps, func(c entities.Chirp) bool {
-		return c.Id == chirpId
-	})
-	if i == -1 {
-		respondWithError(w, 404, "chirp not found")
-		return
-	}
-	respondWithJSON(w, 200, chirps[i])
+	respondWithJSON(w, 200, chirp)
 }
 
 func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Request) {
@@ -67,4 +82,35 @@ func (cfg *apiConfig) handlerCreateChirp(w http.ResponseWriter, req *http.Reques
 		return
 	}
 	respondWithJSON(w, 201, chirp)
+}
+
+func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, req *http.Request) {
+	userId, err := cfg.isAuthenticated(req)
+	if err != nil {
+		respondWithError(w, 401, err.Error())
+		return
+	}
+	chirpId, err := strconv.Atoi(req.PathValue("chirpId"))
+	if err != nil {
+		respondWithError(w, 400, "invalid integer for chirp id")
+		return
+	}
+	chirp, err := cfg.findChirpById(chirpId)
+	if err != nil {
+		if errors.Is(err, errNotFound) {
+			respondWithError(w, 404, "chirp not found")
+		} else {
+			respondWithError(w, 500, err.Error())
+		}
+		return
+	}
+	if chirp.UserId != userId {
+		respondWithError(w, 403, "forbidden")
+		return
+	}
+	if err := cfg.db.DeleteChirp(chirp.Id); err != nil {
+		respondWithError(w, 500, err.Error())
+		return
+	}
+	respondWithJSON(w, 204, struct{}{})
 }

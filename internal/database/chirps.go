@@ -31,3 +31,17 @@ func (db *DB) GetChirps() ([]entities.Chirp, error) {
 	}
 	return chirps, nil
 }
+
+// DeleteChirp is an idempotent operation that deletes a chirp by id.
+func (db *DB) DeleteChirp(id int) error {
+	dbObj, err := db.loadDB()
+	if err != nil {
+		return err
+	}
+	delete(dbObj.Chirps, id)
+	if err = db.writeDB(*dbObj); err != nil {
+		return err
+	}
+
+	return nil
+}
