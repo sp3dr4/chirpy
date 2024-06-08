@@ -29,22 +29,35 @@ func (cfg *apiConfig) findChirpById(id int) (*entities.Chirp, error) {
 }
 
 func (cfg *apiConfig) handlerListChirps(w http.ResponseWriter, req *http.Request) {
-	s := req.URL.Query().Get("author_id")
+	userIdQuery := req.URL.Query().Get("author_id")
 	var byUserId *int
-	if s != "" {
-		v, err := strconv.Atoi(s)
+	if userIdQuery != "" {
+		v, err := strconv.Atoi(userIdQuery)
 		if err != nil {
 			respondWithError(w, 400, err.Error())
 			return
 		}
 		byUserId = &v
 	}
+
 	chirps, err := cfg.db.GetChirps(byUserId)
 	if err != nil {
 		respondWithError(w, 500, err.Error())
 		return
 	}
-	sort.Slice(chirps, func(i, j int) bool { return chirps[i].Id < chirps[j].Id })
+
+	sortFn := func(i, j int) bool { return chirps[i].Id < chirps[j].Id }
+	sortQuery := req.URL.Query().Get("sort")
+	if sortQuery != "" && sortQuery != "asc" {
+		if sortQuery == "desc" {
+			sortFn = func(i, j int) bool { return chirps[i].Id > chirps[j].Id }
+		} else {
+			respondWithError(w, 400, "invalid sort query parameter")
+			return
+		}
+	}
+	sort.Slice(chirps, sortFn)
+
 	respondWithJSON(w, 200, chirps)
 }
 
