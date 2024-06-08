@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"strconv"
 	"time"
@@ -8,14 +10,19 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const defaultJwtExpirationSeconds int = 24 * 60 * 60
+const defaultJwtExpirationSeconds int = 60 * 60
+const defaultRefreshExpirationSeconds int = 60 * 24 * 60 * 60
 
-func createJwt(userId, expiresInSeconds int, secret string) (string, error) {
+func buildExpiration(expirationSeconds int) time.Time {
+	return time.Now().Add(time.Duration(expirationSeconds) * time.Second)
+}
+
+func createJwt(userId int, secret string) (string, error) {
 	now := time.Now()
 	claims := jwt.RegisteredClaims{
 		Issuer:    "chirpy",
 		IssuedAt:  jwt.NewNumericDate(now),
-		ExpiresAt: jwt.NewNumericDate(now.Add(time.Duration(expiresInSeconds) * time.Second)),
+		ExpiresAt: jwt.NewNumericDate(buildExpiration(defaultJwtExpirationSeconds)),
 		Subject:   fmt.Sprint(userId),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -44,4 +51,15 @@ func getUserIdFromJwt(value, secret string) (int, error) {
 		return 0, err
 	}
 	return userId, nil
+}
+
+func buildRandomToken() (string, error) {
+	bytesLen := 32
+	bToken := make([]byte, bytesLen)
+	_, err := rand.Read(bToken)
+	if err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(bToken)
+	return token, nil
 }

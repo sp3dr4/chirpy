@@ -72,10 +72,12 @@ func main() {
 	mux.HandleFunc("GET /api/chirps/{chirpId}", cfg.handlerGetChirp)
 	mux.HandleFunc("POST /api/users", cfg.handlerCreateUser)
 	mux.HandleFunc("PUT /api/users", cfg.handlerUpdateUser)
-	mux.HandleFunc("POST /api/login", cfg.handlerLoginUser)
+	mux.HandleFunc("POST /api/login", cfg.handlerLogin)
+	mux.HandleFunc("POST /api/refresh", cfg.handlerRefresh)
+	mux.HandleFunc("POST /api/revoke", cfg.handlerRevoke)
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: mux,
 	}
-	server.ListenAndServe()
+	log.Fatal(server.ListenAndServe())
 }
