@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/sp3dr4/chirpy/internal/entities"
 )
@@ -58,6 +59,16 @@ func (cfg *apiConfig) userDowngradedCallback(w http.ResponseWriter, payload Payl
 }
 
 func (cfg *apiConfig) handlerWebhookPolka(w http.ResponseWriter, r *http.Request) {
+	apiKey, found := strings.CutPrefix(r.Header.Get("Authorization"), "ApiKey ")
+	if !found {
+		respondWithError(w, 401, "no authorization header")
+		return
+	}
+	if apiKey != cfg.polkaApiKey {
+		respondWithError(w, 401, "no authorization header")
+		return
+	}
+
 	var polkaCallbacksMap = map[string]func(http.ResponseWriter, Payload){
 		"user.upgraded":   cfg.userUpgradedCallback,
 		"user.downgraded": cfg.userDowngradedCallback,

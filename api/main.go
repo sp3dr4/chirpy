@@ -15,6 +15,7 @@ import (
 type apiConfig struct {
 	fileserverHits int
 	jwtSecret      string
+	polkaApiKey    string
 	db             *database.DB
 }
 
@@ -48,6 +49,7 @@ func handlerHealth(w http.ResponseWriter, req *http.Request) {
 func main() {
 	godotenv.Load()
 	jwtSecret := os.Getenv("JWT_SECRET")
+	polkaApiKey := os.Getenv("POLKA_WEBHOOK_API_KEY")
 
 	isDebug := flag.Bool("debug", false, "Enable debug mode")
 	flag.Parse()
@@ -59,6 +61,7 @@ func main() {
 	cfg := apiConfig{
 		fileserverHits: 0,
 		jwtSecret:      jwtSecret,
+		polkaApiKey:    polkaApiKey,
 		db:             db,
 	}
 	mux := http.NewServeMux()

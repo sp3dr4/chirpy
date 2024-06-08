@@ -86,6 +86,7 @@ func (cfg *apiConfig) handlerRefresh(w http.ResponseWriter, req *http.Request) {
 	refreshStr, found := strings.CutPrefix(req.Header.Get("Authorization"), "Bearer ")
 	if !found {
 		respondWithError(w, 401, "no authorization header")
+		return
 	}
 
 	refreshObj, err := cfg.db.GetRefreshToken(refreshStr)
