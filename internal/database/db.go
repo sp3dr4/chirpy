@@ -97,8 +97,7 @@ func (db *DB) loadDB() (*DBStructure, error) {
 		return nil, err
 	}
 	dbstruct := &DBStructure{}
-	err = json.Unmarshal(dat, dbstruct)
-	if err != nil {
+	if err = json.Unmarshal(dat, dbstruct); err != nil {
 		return nil, err
 	}
 	return dbstruct, nil

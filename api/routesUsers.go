@@ -19,8 +19,9 @@ type userRequest struct {
 }
 
 type userResponse struct {
-	Id    int    `json:"id"`
-	Email string `json:"email"`
+	Id          int    `json:"id"`
+	Email       string `json:"email"`
+	IsChirpyRed bool   `json:"is_chirpy_red"`
 }
 
 func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request) {
@@ -34,7 +35,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 		respondWithError(w, 500, "something went wrong")
 		return
 	}
-	user, err := cfg.db.CreateUser(strings.ToLower(userReq.Email), string(paswHash))
+	user, err := cfg.db.CreateUser(strings.ToLower(userReq.Email), string(paswHash), false)
 	if err != nil {
 		code := 500
 		if errors.Is(err, database.ErrDuplicateUser) {
@@ -43,7 +44,7 @@ func (cfg *apiConfig) handlerCreateUser(w http.ResponseWriter, req *http.Request
 		respondWithError(w, code, err.Error())
 		return
 	}
-	respondWithJSON(w, 201, userResponse{Id: user.Id, Email: user.Email})
+	respondWithJSON(w, 201, userResponse{Id: user.Id, Email: user.Email, IsChirpyRed: user.IsChirpyRed})
 }
 
 func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, req *http.Request) {
@@ -89,5 +90,5 @@ func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, req *http.Request
 		user = *updated
 	}
 
-	respondWithJSON(w, 200, userResponse{Id: user.Id, Email: user.Email})
+	respondWithJSON(w, 200, userResponse{Id: user.Id, Email: user.Email, IsChirpyRed: user.IsChirpyRed})
 }

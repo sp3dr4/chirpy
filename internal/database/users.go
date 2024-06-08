@@ -12,7 +12,7 @@ func findUserByEmail(users map[int]entities.User, email string) (*entities.User,
 }
 
 // CreateUser creates a new user and saves it to disk
-func (db *DB) CreateUser(email, password string) (*entities.User, error) {
+func (db *DB) CreateUser(email, password string, isChirpyRed bool) (*entities.User, error) {
 	dbObj, err := db.loadDB()
 	if err != nil {
 		return nil, err
@@ -26,9 +26,10 @@ func (db *DB) CreateUser(email, password string) (*entities.User, error) {
 	db.userLastId += 1
 	db.userIdMux.Unlock()
 	user := entities.User{
-		Id:       db.userLastId,
-		Email:    email,
-		Password: password,
+		Id:          db.userLastId,
+		Email:       email,
+		Password:    password,
+		IsChirpyRed: isChirpyRed,
 	}
 
 	dbObj.Users[user.Id] = user

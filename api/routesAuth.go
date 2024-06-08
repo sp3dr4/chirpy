@@ -75,7 +75,7 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, req *http.Request) {
 		w,
 		200,
 		loginResponse{
-			userResponse: userResponse{Id: user.Id, Email: user.Email},
+			userResponse: userResponse{Id: user.Id, Email: user.Email, IsChirpyRed: user.IsChirpyRed},
 			Token:        signedToken,
 			RefreshToken: refreshToken.Token,
 		},
